@@ -280,33 +280,69 @@
       0%, 100% { opacity: 1; transform: scale(1); }
       50% { opacity: 0.6; transform: scale(0.8); }
     }
-
-    /* RESULTADO */
+    
+ /* RESULTADO */
     .resultado-card {
       width: 100%;
       max-width: 380px;
       margin-top: 12px;
-      padding: 14px 16px;
-      border-radius: 10px;
+      padding: 16px;
+      border-radius: 12px;
       display: none;
       align-items: center;
-      gap: 12px;
-      font-size: 0.9rem;
-      font-weight: 600;
+      gap: 14px;
+      transition: all 0.3s ease;
     }
 
     .resultado-card.exito {
       background: rgba(39,174,96,0.15);
       border: 1px solid rgba(39,174,96,0.4);
-      color: #2ecc71;
       display: flex;
+      animation: slideIn 0.3s ease;
     }
 
     .resultado-card.error {
       background: rgba(231,76,60,0.15);
       border: 1px solid rgba(231,76,60,0.4);
-      color: #e74c3c;
       display: flex;
+      animation: slideIn 0.3s ease;
+    }
+
+    .resultado-icono {
+      font-size: 2rem;
+      flex-shrink: 0;
+    }
+
+    .resultado-info {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .resultado-titulo {
+      font-size: 0.85rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .resultado-card.exito .resultado-titulo { color: #2ecc71; }
+    .resultado-card.error .resultado-titulo { color: #e74c3c; }
+
+    .resultado-nombre {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: white;
+    }
+
+    .resultado-detalle {
+      font-size: 0.8rem;
+      color: #a0aec0;
+    }
+
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
     }
 
     /* FOOTER */
@@ -366,8 +402,12 @@
 
   <!-- RESULTADO -->
   <div class="resultado-card" id="resultadoCard">
-    <span id="resultadoIcon">✅</span>
-    <span id="resultadoTexto"></span>
+    <div class="resultado-icono" id="resultadoIcon">✅</div>
+    <div class="resultado-info">
+      <div class="resultado-titulo" id="resultadoTitulo">Registro exitoso</div>
+      <div class="resultado-nombre" id="resultadoNombre"></div>
+      <div class="resultado-detalle" id="resultadoDetalle"></div>
+    </div>
   </div>
 
   <div class="footer">© 2026 Instituto Mixto de Educación "Conguaquense"</div>
@@ -404,13 +444,16 @@
       statusDot.className = 'status-dot ' + (tipo || '');
     }
 
-    function mostrarResultado(texto, tipo) {
+   function mostrarResultado(datos, tipo) {
       resultadoCard.className = 'resultado-card ' + tipo;
-      resultadoIcon.textContent = tipo === 'exito' ? '✅' : '❌';
-      resultadoTexto.textContent = texto;
+      document.getElementById('resultadoIcon').textContent = tipo === 'exito' ? '✅' : '❌';
+      document.getElementById('resultadoTitulo').textContent = tipo === 'exito' ? '✅ Registro exitoso' : '❌ Error en registro';
+      document.getElementById('resultadoNombre').textContent = datos.nombre || '';
+      document.getElementById('resultadoDetalle').textContent = datos.detalle || '';
+
       setTimeout(() => {
         resultadoCard.className = 'resultado-card';
-      }, 3000);
+      }, 4000);
     }
 
     // Iniciar cámara
@@ -462,8 +505,11 @@
             lastCode = code.data;
             lastTime = now;
 
-            setStatus('✅ Código escaneado — ' + movimiento, 'exito');
-            mostrarResultado('Código enviado: ' + code.data, 'exito');
+          setStatus('Procesando...', 'activo');
+            mostrarResultado({
+              nombre: 'Verificando...',
+              detalle: 'Consultando servidor...'
+            }, 'exito');
 
             if (opener) {
               opener.postMessage({
@@ -486,6 +532,28 @@
 
       requestAnimationFrame(scanFrame);  // Siempre continuar el loop
     }
+
+    // Recibir resultado del servidor desde GAS
+    window.addEventListener('message', function(event) {
+      if (!event.data || !event.data.tipo) return;
+
+      if (event.data.tipo === 'resultado_registro') {
+        if (event.data.exito) {
+          setStatus('✅ ' + event.data.nombre + ' — Registrado', 'exito');
+          mostrarResultado({
+            nombre: event.data.nombre,
+            detalle: event.data.detalle
+          }, 'exito');
+        } else {
+          setStatus('❌ Error en registro', 'error');
+          mostrarResultado({
+            nombre: event.data.nombre,
+            detalle: event.data.detalle
+          }, 'error');
+        }
+      }
+    });
+    
   </script>
 </body>
 </html>
