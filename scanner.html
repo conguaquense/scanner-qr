@@ -6,16 +6,20 @@
   <title>Scanner QR</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { background: #000; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; font-family: sans-serif; }
-    #status { color: white; text-align: center; padding: 12px; font-size: 1rem; width: 100%; }
+    body { background: #1a1a2e; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; font-family: sans-serif; }
+    #status { color: white; text-align: center; padding: 12px; font-size: 1rem; width: 100%; background: rgba(102,126,234,0.3); margin-bottom: 10px; }
     #container { position: relative; width: 100%; max-width: 400px; }
-    video { width: 100%; display: block; }
+    video { width: 100%; display: block; border-radius: 8px; }
     canvas { display: none; }
-    #overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 200px; height: 200px; border: 3px solid #00ff00; border-radius: 8px; box-shadow: 0 0 0 9999px rgba(0,0,0,0.5); }
-    #btnIniciar { margin-top: 20px; padding: 14px 30px; background: #667eea; color: white; border: none; border-radius: 8px; font-size: 1rem; cursor: pointer; }
+    #overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 200px; height: 200px; border: 3px solid #00ff00; border-radius: 8px; box-shadow: 0 0 0 9999px rgba(0,0,0,0.5); pointer-events: none; }
+    #btnIniciar { margin-top: 20px; padding: 14px 30px; background: #667eea; color: white; border: none; border-radius: 8px; font-size: 1.1rem; cursor: pointer; font-weight: bold; }
+    #btnIniciar:hover { background: #5a6fd6; }
+    #resultado { color: #00ff00; text-align: center; padding: 10px; font-size: 0.9rem; margin-top: 10px; }
+    h2 { color: white; margin-bottom: 20px; font-size: 1.2rem; text-align: center; padding: 0 20px; }
   </style>
 </head>
 <body>
+  <h2>📷 Scanner QR — Colegio Integral</h2>
   <div id="status">Toca el botón para activar la cámara</div>
   <div id="container">
     <video id="video" autoplay playsinline muted></video>
@@ -23,19 +27,23 @@
     <div id="overlay"></div>
   </div>
   <button id="btnIniciar">📷 Activar Cámara</button>
+  <div id="resultado"></div>
 
   <script type="module">
-    // Importar librería de detección QR (jsQR)
     const jsQR = (await import('https://esm.sh/jsqr@1.4.0')).default;
 
     const video = document.getElementById('video');
     const canvas = document.getElementById('canvas');
     const status = document.getElementById('status');
     const btnIniciar = document.getElementById('btnIniciar');
+    const resultado = document.getElementById('resultado');
     const ctx = canvas.getContext('2d');
     let scanning = false;
     let lastCode = '';
     let lastTime = 0;
+
+    // Referencia a la ventana padre
+    const opener = window.opener;
 
     btnIniciar.addEventListener('click', async () => {
       try {
@@ -49,14 +57,16 @@
         video.srcObject = stream;
         await video.play();
 
-        status.textContent = 'Esperando código QR...';
+        status.textContent = '✅ Cámara activa — Esperando código QR...';
         scanning = true;
         requestAnimationFrame(scanFrame);
 
       } catch (err) {
-        status.textContent = 'Error: ' + err.message;
+        status.textContent = '❌ Error: ' + err.message;
         btnIniciar.style.display = 'block';
-        window.parent.postMessage({ tipo: 'error_camara', mensaje: err.message }, '*');
+        if (opener) {
+          opener.postMessage({ tipo: 'error_camara', mensaje: err.message }, '*');
+        }
       }
     });
 
@@ -75,25 +85,29 @@
 
         if (code) {
           const now = Date.now();
-          // Evitar enviar el mismo código 2 veces seguidas en menos de 3 segundos
           if (code.data !== lastCode || (now - lastTime) > 3000) {
             lastCode = code.data;
             lastTime = now;
-            status.textContent = '✅ Escaneado: ' + code.data;
-            window.parent.postMessage({ tipo: 'qr_escaneado', codigo: code.data }, '*');
 
-            // Pausa 3 segundos antes de seguir escaneando
+            status.textContent = '✅ Escaneado correctamente';
+            resultado.textContent = '🔍 Código: ' + code.data;
+
+            // Enviar al padre (ventana de GAS)
+            if (opener) {
+              opener.postMessage({ tipo: 'qr_escaneado', codigo: code.data }, '*');
+            }
+
             scanning = false;
             setTimeout(() => {
               scanning = true;
               status.textContent = 'Esperando código QR...';
+              resultado.textContent = '';
               requestAnimationFrame(scanFrame);
             }, 3000);
             return;
           }
         }
       }
-
       requestAnimationFrame(scanFrame);
     }
   </script>
