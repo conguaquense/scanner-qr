@@ -326,6 +326,15 @@
       letter-spacing: 0.5px;
     }
 
+    .resultado-card.procesando {
+      background: rgba(102,126,234,0.15);
+      border: 1px solid rgba(102,126,234,0.4);
+      display: flex;
+      animation: slideIn 0.3s ease;
+    }
+
+    .resultado-card.procesando .resultado-titulo { color: #667eea; }
+
     .resultado-card.exito .resultado-titulo { color: #2ecc71; }
     .resultado-card.error .resultado-titulo { color: #e74c3c; }
 
@@ -446,8 +455,12 @@
 
    function mostrarResultado(datos, tipo) {
       resultadoCard.className = 'resultado-card ' + tipo;
-      document.getElementById('resultadoIcon').textContent = tipo === 'exito' ? '✅' : '❌';
-      document.getElementById('resultadoTitulo').textContent = tipo === 'exito' ? '✅ Registro exitoso' : '❌ Error en registro';
+      document.getElementById('resultadoIcon').textContent = 
+        tipo === 'exito' ? '✅' : 
+        tipo === 'procesando' ? '⏳' : '❌';
+      document.getElementById('resultadoTitulo').textContent = 
+        tipo === 'exito' ? 'Registro exitoso' : 
+        tipo === 'procesando' ? 'Procesando...' : 'Error en registro';
       document.getElementById('resultadoNombre').textContent = datos.nombre || '';
       document.getElementById('resultadoDetalle').textContent = datos.detalle || '';
 
@@ -518,7 +531,7 @@
             mostrarResultado({
               nombre: 'Verificando...',
               detalle: 'Consultando servidor...'
-            }, 'exito');
+            }, 'procesando');
 
             if (opener) {
               opener.postMessage({
