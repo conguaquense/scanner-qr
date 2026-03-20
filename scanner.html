@@ -490,92 +490,106 @@
     }
 
     // Iniciar cámara
-    window.iniciarCamara = async function() {
-      try {
-        btnIniciar.style.display = 'none';
-        setStatus('Iniciando cámara...', 'procesando');
+   window.iniciarCamara = async function() {
+  try {
+    btnIniciar.style.display = 'none';
+    setStatus('Iniciando cámara...', 'procesando');
 
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: 'environment' } }
-        });
-
-        video.srcObject = stream;
-        await video.play();
-
-        scanOverlay.style.display = 'flex';
-        setStatus('Esperando código QR...', 'activo');
-        scanning = true;
-        requestAnimationFrame(scanFrame);
-
-      } catch (err) {
-        setStatus('Error: ' + err.message, 'error');
-        btnIniciar.style.display = 'flex';
-        if (opener) {
-          opener.postMessage({ tipo: 'error_camara', mensaje: err.message }, '*');
-        }
+    // Optimizamos la configuración para dispositivos móviles
+    const constraints = {
+      video: {
+        facingMode: { ideal: 'environment' },
+        width: { ideal: 1280 }, // Resolución HD para captar mejor los módulos del QR
+        height: { ideal: 720 },
+        // Intentar activar enfoque automático continuo si el navegador lo permite
+        focusMode: { ideal: "continuous" } 
       }
     };
+
+    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+
+    video.srcObject = stream;
+    await video.play();
+
+    scanOverlay.style.display = 'flex';
+    setStatus('Esperando código QR...', 'activo');
+    scanning = true;
+    requestAnimationFrame(scanFrame);
+
+  } catch (err) {
+    setStatus('Error: ' + err.message, 'error');
+    btnIniciar.style.display = 'flex';
+    if (opener) {
+      opener.postMessage({ tipo: 'error_camara', mensaje: err.message }, '*');
+    }
+  }
+};
 
     let frameCount = 0;
 
     function scanFrame() {
-      if (!scanning) {
-        requestAnimationFrame(scanFrame);
-        return;
-      }
+  if (!scanning) {
+    requestAnimationFrame(scanFrame);
+    return;
+  }
 
-      // Solo procesar 1 de cada 10 frames (reduce carga sin perder detección)
-      frameCount++;
-      if (frameCount % 10 !== 0) {
-        requestAnimationFrame(scanFrame);
-        return;
-      }
+  // Ahora procesamos 1 de cada 2 frames (mucho más rápido que 1 de cada 10)
+  frameCount++;
+  if (frameCount % 2 !== 0) {
+    requestAnimationFrame(scanFrame);
+    return;
+  }
 
-      if (video.readyState === video.HAVE_ENOUGH_DATA) {
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  if (video.readyState === video.HAVE_ENOUGH_DATA) {
+    // Escalar el canvas a un tamaño manejable (640px) 
+    // Esto acelera la detección en jsQR sin perder precisión
+    canvas.width = 640;
+    canvas.height = 480;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const code = jsQR(imageData.data, imageData.width, imageData.height, {
-          inversionAttempts: 'dontInvert'
-        });
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const code = jsQR(imageData.data, imageData.width, imageData.height, {
+      inversionAttempts: 'dontInvert'
+    });
 
-        if (code && code.data && code.data.trim() !== '') {
-          const now = Date.now();
-          if (code.data !== lastCode || (now - lastTime) > 3000) {
-            lastCode = code.data;
-            lastTime = now;
+    if (code && code.data && code.data.trim() !== '') {
+      const now = Date.now();
+      // Mantenemos la protección para no registrar dos veces el mismo QR por error
+      if (code.data !== lastCode || (now - lastTime) > 3000) {
+        lastCode = code.data;
+        lastTime = now;
 
-            setStatus('Procesando...', 'procesando');
-            mostrarResultado({
-              nombre: 'Verificando...',
-              detalle: 'Consultando servidor...'
-            }, 'procesando');
+        setStatus('Procesando...', 'procesando');
+        mostrarResultado({
+          nombre: 'Verificando...',
+          detalle: 'Consultando servidor...'
+        }, 'procesando');
 
-            if (opener) {
-              opener.postMessage({
-                tipo: 'qr_escaneado',
-                codigo: code.data,
-                movimiento: movimiento
-              }, '*');
-            }
-
-            scanning = false;
-            setTimeout(() => {
-              lastCode = '';
-              scanning = true;
-              setStatus('Esperando código QR...', 'activo');
-            }, 3000);
-
-            requestAnimationFrame(scanFrame);
-            return;
-          }
+        if (opener) {
+          opener.postMessage({
+            tipo: 'qr_escaneado',
+            codigo: code.data,
+            movimiento: movimiento
+          }, '*');
         }
-      }
 
-      requestAnimationFrame(scanFrame);
+        scanning = false;
+        
+        // Tiempo de espera antes de permitir el siguiente escaneo
+        setTimeout(() => {
+          lastCode = '';
+          scanning = true;
+          setStatus('Esperando código QR...', 'activo');
+        }, 3000);
+
+        requestAnimationFrame(scanFrame);
+        return;
+      }
     }
+  }
+
+  requestAnimationFrame(scanFrame);
+}
 
     // Recibir resultado del servidor desde GAS
     window.addEventListener('message', function(event) {
